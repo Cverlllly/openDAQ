@@ -4,7 +4,6 @@ import argparse
 import threading
 import numpy as np
 
-
 class Recorder:
     def __init__(self, signal, buffer_size):
         self.signal_descriptor = signal.descriptor
