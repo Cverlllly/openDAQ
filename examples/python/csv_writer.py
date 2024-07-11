@@ -2,6 +2,7 @@ import opendaq
 import time
 import argparse
 import threading
+import numpy as np
 
 
 class Recorder:
@@ -57,9 +58,9 @@ class RecordedDevice:
     def write_sample(self, recorder, index):
         if index < recorder.read:
             if self.first_write:
-                tdata = recorder.domain_buffer[index].isoformat()
+                tdata = np.datetime_as_string(recorder.domain_buffer[index])
                 self.csv_file.write(f"{tdata};\n")
-            tdata = recorder.domain_buffer[index].isoformat()
+            tdata = np.datetime_as_string(recorder.domain_buffer[index])
             self.csv_file.write(
                 f"{tdata};{recorder.values_buffer[index]:.2f};")
             self.first_write = False
