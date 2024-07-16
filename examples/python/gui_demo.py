@@ -295,8 +295,7 @@ class App(tk.Tk):
             elif component_name == 'IO':
                 component_name = 'Inputs/Outputs'
         else:  # skipping unknown type components
-            skip = True
-
+            icon = self.context.icons['folder']  # assuming every unknown component is also custom component
         if not skip:
             self.tree.insert(parent_node_id, tk.END, iid=component_node_id, image=icon,
                              text=component_name, open=True, values=(component_node_id))
@@ -435,6 +434,9 @@ class App(tk.Tk):
             return daq.IFunctionBlock.cast_from(node)
         elif daq.IDevice.can_cast_from(node):
             return daq.IDevice.cast_from(node)
+        elif node in get_nearest_device(node).custom_components:
+            print(node)
+            return daq.IComponent.cast_from(node)
         else:
             if daq.IFolderConfig.can_cast_from(node):
                 folder = daq.IFolderConfig.cast_from(node)
@@ -498,6 +500,11 @@ class App(tk.Tk):
             draw_sub_fbs(found)
 
         elif type(found) is daq.IDevice:
+            block_view = BlockView(self.right_side_panel, found, self.context)
+            block_view.handle_expand_toggle()
+            block_view.pack(fill=tk.X, padx=5, pady=5)
+
+        elif type(found) is daq.IComponent:
             block_view = BlockView(self.right_side_panel, found, self.context)
             block_view.handle_expand_toggle()
             block_view.pack(fill=tk.X, padx=5, pady=5)
