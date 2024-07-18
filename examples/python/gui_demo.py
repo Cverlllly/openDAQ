@@ -435,7 +435,6 @@ class App(tk.Tk):
         elif daq.IDevice.can_cast_from(node):
             return daq.IDevice.cast_from(node)
         elif node in get_nearest_device(node).custom_components:
-            print(node)
             return daq.IComponent.cast_from(node)
         else:
             if daq.IFolderConfig.can_cast_from(node):
