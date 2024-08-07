@@ -11,13 +11,26 @@ from tkinter.filedialog import asksaveasfile, askopenfile
 
 import opendaq as daq
 
+import shutil
+import webbrowser
+
+
+def check_dot_installed():
+    if shutil.which('dot') is None:
+        return False
+    return True
+
+
 try:
     from ctypes import windll
+
     windll.shcore.SetProcessDpiAwareness(1)
 except:
     pass
 
 try:
+    if check_dot_installed():
+        from connection_view import ConnectionView
     from gui_demo.components.block_view import BlockView
     from gui_demo.components.add_device_dialog import AddDeviceDialog
     from gui_demo.components.add_function_block_dialog import AddFunctionBlockDialog
@@ -41,7 +54,8 @@ class DisplayType(enum.Enum):
     CHANNELS = 2
     FUNCTION_BLOCKS = 3
     TOPOLOGY = 4
-    UNSPECIFIED = 5
+    CONNECTION_VIEW = 5
+    UNSPECIFIED = 6
 
     def from_tab_index(index):
         if index == 0:
@@ -54,6 +68,8 @@ class DisplayType(enum.Enum):
             return DisplayType.FUNCTION_BLOCKS
         elif index == 4:
             return DisplayType.TOPOLOGY
+        elif index == 5:
+            return DisplayType.CONNECTION_VIEW
         return DisplayType.UNSPECIFIED
 
 
@@ -110,6 +126,7 @@ class App(tk.Tk):
         nb.add(ttk.Frame(nb), text='Channels')
         nb.add(ttk.Frame(nb), text='Function blocks')
         nb.add(ttk.Frame(nb), text='Full Topology')
+        nb.add(ttk.Frame(nb), text='Connection view')
         nb.bind('<<NotebookTabChanged>>', self.on_tab_change)
         nb.pack(fill=tk.X)
         self.nb = nb
@@ -125,7 +142,9 @@ class App(tk.Tk):
 
         main_frame_navigator.add(frame_navigator_for_properties)
 
-        main_frame_navigator.pack(side=tk.LEFT, expand=1, fill=tk.BOTH)
+        main_frame_navigator.pack(side=tk.LEFT, expand=1, fill=tk.BOTH, padx=5, pady=5)
+
+        self.main_frame = tk.Frame(main_frame_navigator)
 
         self.frame_navigator_for_properties = frame_navigator_for_properties
 
@@ -229,7 +248,8 @@ class App(tk.Tk):
 
         # tree view only in topology mode + parent exists
         parent_id = '' if display_type not in (
-            DisplayType.UNSPECIFIED, DisplayType.TOPOLOGY, DisplayType.SYSTEM_OVERVIEW, None) or component.parent is None else component.parent.global_id
+            DisplayType.UNSPECIFIED, DisplayType.TOPOLOGY, DisplayType.SYSTEM_OVERVIEW,
+            None) or component.parent is None else component.parent.global_id
 
         if folder is None or folder.items:
             if display_type in (DisplayType.UNSPECIFIED, DisplayType.TOPOLOGY, None):
@@ -558,11 +578,38 @@ class App(tk.Tk):
         print('APP: refresh event received')
         self.tree_update(self.context.selected_node)
 
+    def check_if_connection_view(self):
+        if DisplayType.CONNECTION_VIEW == self.current_tab():
+            if not self.main_frame.winfo_ismapped():
+                graphviz_installed = check_dot_installed()
+                if not graphviz_installed:
+                    self.show_graphviz_error()
+                else:
+                    self.main_frame.pack_forget()
+                    connection_view = ConnectionView(self.main_frame, self.context)
+                    connection_view.pack(fill=tk.BOTH, expand=True)
+        else:
+            for widget in self.main_frame.winfo_children():
+                widget.destroy()
+            self.main_frame.pack_forget()
+            if not self.right_side_panel.winfo_ismapped():
+                self.right_side_panel.pack(fill=tk.BOTH, expand=True)
+
     def on_tab_change(self, event):
+        self.check_if_connection_view()
         self.tree_update(self.context.selected_node)
 
     def current_tab(self):
         return DisplayType.from_tab_index(self.nb.index('current')) if self.nb is not None else DisplayType.UNSPECIFIED
+
+    def show_graphviz_error(self):
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+
+        label_text = ('Graphviz is not installed. Please install it from '
+                      'https://graphviz.org/download/ \n or by running the command '
+                      '\'winget install graphviz\' in the terminal.')
+        label = tk.Label(self.main_frame, text=label_text, font=('Arial', 18), fg='red')
+        label.pack(expand=True, padx=5, pady=5, anchor=tk.N, side=tk.TOP)
 
 
 # MARK: - Entry point
