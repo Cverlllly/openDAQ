@@ -11,13 +11,26 @@ from tkinter.filedialog import asksaveasfile, askopenfile
 
 import opendaq as daq
 
+import shutil
+import webbrowser
+
+
+def check_dot_installed():
+    if shutil.which('dot') is None:
+        return False
+    return True
+
+
 try:
     from ctypes import windll
+
     windll.shcore.SetProcessDpiAwareness(1)
 except:
     pass
 
 try:
+    if check_dot_installed():
+        from connection_view import ConnectionView
     from gui_demo.components.block_view import BlockView
     from gui_demo.components.add_device_dialog import AddDeviceDialog
     from gui_demo.components.add_function_block_dialog import AddFunctionBlockDialog
@@ -41,7 +54,7 @@ class DisplayType(enum.Enum):
     CHANNELS = 2
     FUNCTION_BLOCKS = 3
     TOPOLOGY = 4
-    TOPOLOGY_CUSTOM_COMPONENTS = 5
+    CONNECTION_VIEW = 5
     UNSPECIFIED = 6
 
     def from_tab_index(index):
@@ -55,6 +68,8 @@ class DisplayType(enum.Enum):
             return DisplayType.FUNCTION_BLOCKS
         elif index == 4:
             return DisplayType.TOPOLOGY
+        elif index == 5:
+            return DisplayType.CONNECTION_VIEW
         return DisplayType.UNSPECIFIED
 
 
@@ -111,6 +126,7 @@ class App(tk.Tk):
         nb.add(ttk.Frame(nb), text='Channels')
         nb.add(ttk.Frame(nb), text='Function blocks')
         nb.add(ttk.Frame(nb), text='Full Topology')
+        nb.add(ttk.Frame(nb), text='Connection view')
         nb.bind('<<NotebookTabChanged>>', self.on_tab_change)
         nb.pack(fill=tk.X)
         self.nb = nb
@@ -126,7 +142,9 @@ class App(tk.Tk):
 
         main_frame_navigator.add(frame_navigator_for_properties)
 
-        main_frame_navigator.pack(side=tk.LEFT, expand=1, fill=tk.BOTH)
+        main_frame_navigator.pack(side=tk.LEFT, expand=1, fill=tk.BOTH, padx=5, pady=5)
+
+        self.main_frame = tk.Frame(main_frame_navigator)
 
         self.frame_navigator_for_properties = frame_navigator_for_properties
 
@@ -227,17 +245,15 @@ class App(tk.Tk):
 
         folder = daq.IFolder.cast_from(
             component) if component and daq.IFolder.can_cast_from(component) else None
-        device = daq.IDevice.cast_from(
-            component) if component and daq.IDevice.can_cast_from(component) else None
 
         # tree view only in topology mode + parent exists
         parent_id = '' if display_type not in (
-            DisplayType.UNSPECIFIED, DisplayType.TOPOLOGY, DisplayType.SYSTEM_OVERVIEW, DisplayType.TOPOLOGY_CUSTOM_COMPONENTS, None) or component.parent is None else component.parent.global_id
+            DisplayType.UNSPECIFIED, DisplayType.TOPOLOGY, DisplayType.SYSTEM_OVERVIEW,
+            None) or component.parent is None else component.parent.global_id
 
-        if folder is None or folder.items or display_type == DisplayType.TOPOLOGY_CUSTOM_COMPONENTS:
-            if display_type in (DisplayType.UNSPECIFIED, DisplayType.TOPOLOGY, DisplayType.TOPOLOGY_CUSTOM_COMPONENTS, None):
-                self.tree_add_component(
-                    parent_id, component, display_type == DisplayType.TOPOLOGY_CUSTOM_COMPONENTS)
+        if folder is None or folder.items:
+            if display_type in (DisplayType.UNSPECIFIED, DisplayType.TOPOLOGY, None):
+                self.tree_add_component(parent_id, component)
             elif display_type == DisplayType.SYSTEM_OVERVIEW:
                 if not (daq.IInputPort.can_cast_from(component) or daq.ISignal.can_cast_from(component)):
                     if not (daq.IFolder.can_cast_from(component) and component.name in ('IP', 'Sig')):
@@ -260,14 +276,7 @@ class App(tk.Tk):
                     self.tree_traverse_components_recursive(
                         item, display_type=display_type)
 
-        if device is not None and display_type == DisplayType.TOPOLOGY:
-            custom_components = device.custom_components
-            for item in custom_components:
-                self.context.custom_component_ids.add(item.global_id)
-                self.tree_traverse_components_recursive(
-                    item, display_type=DisplayType.TOPOLOGY_CUSTOM_COMPONENTS)
-
-    def tree_add_component(self, parent_node_id, component, show_unknown=False):
+    def tree_add_component(self, parent_node_id, component):
         component_node_id = component.global_id
         component_name = component.name
         icon = self.context.icons['circle']
@@ -306,11 +315,11 @@ class App(tk.Tk):
             elif component_name == 'IO':
                 component_name = 'Inputs/Outputs'
         else:  # skipping unknown type components
-            skip = not show_unknown
+            skip = True
 
         if not skip:
             self.tree.insert(parent_node_id, tk.END, iid=component_node_id, image=icon,
-                             text=component_name, open=True, values=(component_node_id,))
+                             text=component_name, open=True, values=(component_node_id))
 
     def tree_restore_selection(self, old_node=None):
         desired_iid = old_node.global_id if old_node else ''
@@ -451,6 +460,8 @@ class App(tk.Tk):
         else:
             if daq.IFolderConfig.can_cast_from(node):
                 folder = daq.IFolderConfig.cast_from(node)
+                print(
+                    f'io folder {node} named: {folder.name} items: {folder.items}')
             return self.find_fb_or_device(node.parent)
 
     def right_side_panel_clear(self):
@@ -460,9 +471,7 @@ class App(tk.Tk):
     def right_side_panel_draw_node(self, node):
         if node is None:
             return
-
-        found = self.find_fb_or_device(
-            node) if node.global_id not in self.context.custom_component_ids else node
+        found = self.find_fb_or_device(node)
         if found is None:
             return
         elif type(found) in (daq.IChannel, daq.IFunctionBlock):
@@ -510,7 +519,7 @@ class App(tk.Tk):
 
             draw_sub_fbs(found)
 
-        elif type(found) in (daq.IDevice, daq.IComponent):
+        elif type(found) is daq.IDevice:
             block_view = BlockView(self.right_side_panel, found, self.context)
             block_view.handle_expand_toggle()
             block_view.pack(fill=tk.X, padx=5, pady=5)
@@ -566,13 +575,41 @@ class App(tk.Tk):
     # MARK: - Other
 
     def on_refresh_event(self, event):
+        print('APP: refresh event received')
         self.tree_update(self.context.selected_node)
 
+    def check_if_connection_view(self):
+        if DisplayType.CONNECTION_VIEW == self.current_tab():
+            if not self.main_frame.winfo_ismapped():
+                graphviz_installed = check_dot_installed()
+                if not graphviz_installed:
+                    self.show_graphviz_error()
+                else:
+                    self.main_frame.pack_forget()
+                    connection_view = ConnectionView(self.main_frame, self.context)
+                    connection_view.pack(fill=tk.BOTH, expand=True)
+        else:
+            for widget in self.main_frame.winfo_children():
+                widget.destroy()
+            self.main_frame.pack_forget()
+            if not self.right_side_panel.winfo_ismapped():
+                self.right_side_panel.pack(fill=tk.BOTH, expand=True)
+
     def on_tab_change(self, event):
+        self.check_if_connection_view()
         self.tree_update(self.context.selected_node)
 
     def current_tab(self):
         return DisplayType.from_tab_index(self.nb.index('current')) if self.nb is not None else DisplayType.UNSPECIFIED
+
+    def show_graphviz_error(self):
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+
+        label_text = ('Graphviz is not installed. Please install it from '
+                      'https://graphviz.org/download/ \n or by running the command '
+                      '\'winget install graphviz\' in the terminal.')
+        label = tk.Label(self.main_frame, text=label_text, font=('Arial', 18), fg='red')
+        label.pack(expand=True, padx=5, pady=5, anchor=tk.N, side=tk.TOP)
 
 
 # MARK: - Entry point
