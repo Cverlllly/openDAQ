@@ -422,8 +422,8 @@ class ConnectionView(tk.Frame):
                               tk.IntVar(value=int(self.input_ports)),
                               tk.IntVar(value=int(self.show_disconnected_signals)),
                               tk.IntVar(value=int(self.show_connected_signals_only))]
-        checkbox_texts = ["Additional properties", "Show attributes", "Show Input ports", "Show disconnected signals",
-                          "Show connected signals only"]
+        checkbox_texts = ["Show properties", "Show attributes", "Show Input ports", "Show disconnected signals",
+                          "Show connected function blocks only"]
         for i, text in enumerate(checkbox_texts):
             checkbox = tk.Checkbutton(left_column, text=text, variable=self.checkbox_vars[i])
             checkbox.pack(anchor=tk.W, padx=5, pady=2)
