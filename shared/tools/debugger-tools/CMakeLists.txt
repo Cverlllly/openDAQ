@@ -1,0 +1,9 @@
+set(OPENDAQ_DEBUGGER_TOOLS_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+
+set(OPENDAQ_GDB_PY_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/gdbinit.in"
+    "${CMAKE_BINARY_DIR}/bin/.gdbinit"
+    @ONLY
+)
