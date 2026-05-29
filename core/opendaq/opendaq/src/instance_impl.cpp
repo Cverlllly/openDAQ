@@ -1,6 +1,7 @@
 #include <opendaq/context_ptr.h>
 #include <opendaq/context_internal_ptr.h>
 #include <opendaq/device_info_factory.h>
+#include <opendaq/first_instance.h>
 #include <opendaq/ids_parser.h>
 #include <opendaq/instance_factory.h>
 #include <opendaq/instance_impl.h>
@@ -23,6 +24,9 @@ BEGIN_NAMESPACE_OPENDAQ
 static StringPtr DefineLocalId(const StringPtr& localId);
 static ContextPtr ContextFromInstanceBuilder(IInstanceBuilder* instanceBuilder);
 
+static IInstance* firstInstance = nullptr;
+
+
 InstanceImpl::InstanceImpl(ContextPtr context, const StringPtr& localId)
     : context(std::move(context))
     , moduleManager(this->context.assigned() ? this->context.asPtr<IContextInternal>().moveModuleManager() : nullptr)
@@ -36,6 +40,9 @@ InstanceImpl::InstanceImpl(ContextPtr context, const StringPtr& localId)
     const auto devicePrivate = rootDevice.asPtrOrNull<IDevicePrivate>();
     if (devicePrivate.assigned())
         devicePrivate->setAsRoot();
+
+    if (firstInstance == nullptr)
+        firstInstance = static_cast<IInstance*>(this);
 }
 
 InstanceImpl::InstanceImpl(IInstanceBuilder* instanceBuilder)
@@ -70,10 +77,14 @@ InstanceImpl::InstanceImpl(IInstanceBuilder* instanceBuilder)
         discoveryServer.asPtr<IDiscoveryServer>().setRootDevice(rootDevice);
 
     rootDevice.asPtr<IPropertyObjectInternal>().enableCoreEventTrigger();
+
+    if (firstInstance == nullptr)
+        firstInstance = static_cast<IInstance*>(this);
 }
 
 InstanceImpl::~InstanceImpl()
 {
+    firstInstance = nullptr;
     stopAndRemoveServers();
     rootDevice.remove();
     rootDevice.release();
@@ -869,3 +880,9 @@ OPENDAQ_DEFINE_CLASS_FACTORY_WITH_INTERFACE_AND_CREATEFUNC(
 )
 
 END_NAMESPACE_OPENDAQ
+
+extern "C"
+PUBLIC_EXPORT daq::IInstance* daqGetFirstInstance()
+{
+    return daq::firstInstance;
+}

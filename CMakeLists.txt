@@ -112,6 +112,7 @@ option(OPENDAQ_ENABLE_UNSTABLE_TEST_LABELS "Enable labeling unstable tests" OFF)
 
 # Additional build options
 option(OPENDAQ_ENABLE_ERROR_GUARD "Enable error guard" OFF)
+option(OPENDAQ_ENABLE_GDB_PRETTY_PRINTING "Generate .gdbinit with openDAQ GDB pretty printers" OFF)
 
 if (NOT OPENDAQ_ENABLE_ERROR_GUARD AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(OPENDAQ_ENABLE_ERROR_GUARD ON CACHE BOOL "Enable error guard" FORCE)
@@ -394,6 +395,10 @@ add_subdirectory(examples)
 add_subdirectory(bindings)
 add_subdirectory(docs)
 add_subdirectory(simulator)
+
+if (OPENDAQ_ENABLE_GDB_PRETTY_PRINTING)
+    add_subdirectory(shared/tools/debugger-tools)
+endif()
 
 if (OPENDAQ_ENABLE_TESTS)
     add_subdirectory(tests)

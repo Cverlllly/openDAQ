@@ -77,12 +77,13 @@ function(create_component_source_groups_${BASE_NAME})
 endfunction()
 
 
-set(SRC_PublicHeaders_Component 
+set(SRC_PublicHeaders_Component
 	version.h
     opendaq.h
     errors.h
     exceptions.h
     instance_factory.h
+    first_instance.h
     config_provider_factory.h
     client_type.h
 	module_authenticator.h
