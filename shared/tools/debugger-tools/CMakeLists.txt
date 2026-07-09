@@ -7,3 +7,7 @@ configure_file(
     "${CMAKE_BINARY_DIR}/bin/.gdbinit"
     @ONLY
 )
+
+if (OPENDAQ_ENABLE_TESTS AND OPENDAQ_ENABLE_GDB_PRETTY_PRINTING_TESTS)
+    add_subdirectory(tests)
+endif()
